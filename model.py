@@ -1,5 +1,7 @@
 #training model for self driving car
 
+# Import Libraries #
+
 import os
 import csv
 import pandas as pd
@@ -7,6 +9,9 @@ import sys
 import random
 import numpy as np
 from imgaug import augmenters as iaa
+import keras
+from keras.models import Sequential
+from keras.layers import Convolution2D, Dropout, Flatten, Dense
 
 
 class SD_NN:
@@ -77,6 +82,37 @@ class SD_NN:
         return im
 
     #def train(self):
+
+
+    '''
+    Nvidia Self Driving Car Nueral Network - We are building the implementation of a self driving neural net described in the Nvidia Developer blog
+
+    "We train the weights of our network to minimize the mean-squared error between the steering command output by the network, and either the command of the
+    human driver or the adjusted steering command for off-center and rotated images (see “Augmentation”, later). Figure 5 shows the network architecture, which
+    consists of 9 layers, including a normalization layer, 5 convolutional layers, and 3 fully connected layers. The input image is split into YUV planes and
+    passed to the network." - Nvidia Developer Blog
+
+    https://devblogs.nvidia.com/deep-learning-self-driving-cars/
+    '''
+
+    # Nvidia Network Architecture Implemented Using Keras #
+
+    def nvidia_model_builder():
+
+        model = Sequential()
+        model.add(Convolution2D(3, 5, 5, strides=(2,2), input_shape = (66, 200, 3), activation = 'elu'))
+        model.add(Convolution2D(24, 5, 5, strides=(2,2), input_shape = (31, 98, 24), activation = 'elu'))
+        model.add(Convolution2D(36, 5, 5, strides=(2,2), input_shape = (14, 47, 36), activation = 'elu'))
+        model.add(Convolution2D(48, 3, 3, input_shape = (5, 22, 48), activation = 'elu'))
+        model.add(Convolution2D(64, 3, 3, input_shape = (3, 20, 64), activation = 'elu'))
+        model.add(Flatten())
+        model.add(Dense(1164), activation = 'elu')
+        model.add(Dense(100), activation = 'elu')
+        model.add(Dense(50), activation = 'elu')
+        model.add(Dense(10), activation = 'elu')
+        model.add(Dense(1))
+
+        return model
 
 if __name__ == "__main__":
     seed = 12345
