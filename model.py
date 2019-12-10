@@ -59,9 +59,11 @@ class SD_NN:
             img = cv2.imread(point[0])
             #image_dataframe = self.image_to_dataframe(self.img_preprocess(img), point[1])
             processed_dataset.append(self.img_preprocess(img))
+            #processed_dataset.append(img)
             labels.append(point[1])
         return (processed_dataset, labels)
 
+    #not in use right now
     def image_to_dataframe(self, img, label):
         processed_img = []
         for y in range(len(img)):
@@ -74,9 +76,17 @@ class SD_NN:
     def parse(self, data, testdir):
         def split_path(path):
             return path.split('\\')[-1]
+
         data['center'] = data['center'].apply(split_path)
         data['left'] = data['left'].apply(split_path)
         data['right'] = data['right'].apply(split_path)
+
+        ###### test
+        data.drop(['left'], axis=1)
+        data.drop(['right'], axis=1)
+        ######
+
+
         paths, direction = self.parse_image_path(data, testdir+'/IMG/')
         self.test, self.train = self.split_data(paths, direction)
 
@@ -86,18 +96,18 @@ class SD_NN:
         for i in range(len(data)):
             data_point = data.iloc[i]
             center = data_point[0]
-            left = data_point[1]
-            right = data_point[2]
+            #left = data_point[1]
+            #right = data_point[2]
 
             steer = float(data_point[3])
             paths.append(testdir+center.strip())
             directions.append(steer)
 
-            paths.append(testdir+left.strip())
-            directions.append(steer+0.15)
+            #paths.append(testdir+left.strip())
+            #directions.append(steer+0.15)
 
-            paths.append(testdir+left.strip())
-            directions.append(steer-0.15)
+            #paths.append(testdir+left.strip())
+            #directions.append(steer-0.15)
         paths = np.asarray(paths)
         directions = np.asarray(directions)
         return paths, directions
@@ -145,15 +155,15 @@ class SD_NN:
         model = self.nvidia_model_builder()
         optimizer = Adam(lr=1e-3)
         model.compile(loss='mse', optimizer=optimizer)
-        model.fit(np.asarray(self.train[0]), np.asarray(self.train[1]), epochs=15)
+        model.fit(np.asarray(self.train[0]), np.asarray(self.train[1]), epochs=20)
         predictions = model.predict(np.asarray(self.test[0]))
         print(len(predictions))
         acc = 0
         for i in range(len(predictions)):
-            #print(predictions[i][0], self.test[1][i])
+            print(predictions[i][0], self.test[1][i])
             val = predictions[i].astype(np.float)
             lab = self.test[1][i].astype(np.float)
-            if abs(val - lab) < .1:
+            if abs(val - lab) < .05:
                 acc += 1
         print(acc/len(predictions))
 
@@ -161,8 +171,8 @@ class SD_NN:
 
     def nvidia_model_builder(self):
         model = Sequential()
-        #model.add(Convolution2D(3, (5, 5), strides=(2,2), input_shape=(66, 200, 3), activation='elu'))
         model.add(Convolution2D(3, (5, 5), strides=(2,2), input_shape=(66, 200, 3), activation='elu'))
+        #model.add(Convolution2D(3, (5, 5), strides=(2,2), input_shape=(160, 320, 3), activation='elu'))
         model.add(Convolution2D(24, (5, 5), strides=(2,2), input_shape=(31, 98, 24), activation='elu'))
         model.add(Convolution2D(36, (5, 5), strides=(2,2), input_shape=(14, 47, 36), activation='elu'))
         model.add(Convolution2D(48, (3, 3), input_shape=(5, 22, 48), activation='elu'))
@@ -178,7 +188,7 @@ class SD_NN:
 
 if __name__ == "__main__":
     seed = 12345
-    training_perc = 0.75
+    training_perc = 0.70
     testset = "Drive-1/driving_log.csv"
     dir = "Drive-1"
     model = SD_NN(testset, dir, seed, training_perc)
