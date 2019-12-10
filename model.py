@@ -3,7 +3,7 @@
 # Import Libraries #
 
 import os
-import csv
+import cv2
 import pandas as pd
 import sys
 import random
@@ -12,6 +12,7 @@ from imgaug import augmenters as iaa
 import keras
 from keras.models import Sequential
 from keras.layers import Convolution2D, Dropout, Flatten, Dense
+from keras.optimizers import Adam
 
 
 class SD_NN:
@@ -26,9 +27,49 @@ class SD_NN:
         self.train = []
 
         self.parse(self.data_set, testdir)
-        #print(self.data_set.head()
-        print(self.test[:5])
+        #print(type(self.data_set.head()))
 
+        #tuple of parsed set, and labels
+        self.test = self.parse_images(self.test)
+        self.train = self.parse_images(self.train)
+        #print(self.image_to_dataframe(self.img_preprocess(cv2.imread(self.test[0][0])), self.test[0][1]))
+        #print(self.test[:5])
+    """
+    def parse_images(self, dataset):
+        processed_dataset = []
+        labels = []
+        count = 0
+        for point in dataset:
+            if count == 5:
+                break
+            count += 1
+            img = cv2.imread(point[0])
+            if img is None:
+            #    print(img, point)
+                continue
+            image_dataframe = self.image_to_dataframe(self.img_preprocess(img), point[1])
+            processed_dataset.append(image_dataframe[0])
+            labels.append(image_dataframe[1])
+        return (processed_dataset, labels)
+    """
+    def parse_images(self, dataset):
+        processed_dataset = []
+        labels = []
+        for point in dataset:
+            img = cv2.imread(point[0])
+            #image_dataframe = self.image_to_dataframe(self.img_preprocess(img), point[1])
+            processed_dataset.append(self.img_preprocess(img))
+            labels.append(point[1])
+        return (processed_dataset, labels)
+
+    def image_to_dataframe(self, img, label):
+        processed_img = []
+        for y in range(len(img)):
+            for x in range(len(img[y])):
+                rgb = 65536 * img[y][x][0] + 256 * img[y][x][1] + img[y][x][2]
+                processed_img.append(rgb)
+
+        return (label, processed_img)
 
     def parse(self, data, testdir):
         def split_path(path):
@@ -76,10 +117,13 @@ class SD_NN:
         test = shuffle_set[splitind:]
         return train, test
 
-    def zoom(im):
-        zoom = iaa.Affine(scale=(1, 1.3))
-        im = zoom.augment_image(im)
-        return im
+    def img_preprocess(self, img):
+        img = img[60:135,:,:]
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+        img = cv2.GaussianBlur(img,  (3, 3), 0)
+        img = cv2.resize(img, (200, 66))
+        #img = img/255
+        return img
 
     #def train(self):
 
@@ -97,19 +141,37 @@ class SD_NN:
 
     # Nvidia Network Architecture Implemented Using Keras #
 
-    def nvidia_model_builder():
+    def train_model(self):
+        model = self.nvidia_model_builder()
+        optimizer = Adam(lr=1e-3)
+        model.compile(loss='mse', optimizer=optimizer)
+        model.fit(np.asarray(self.train[0]), np.asarray(self.train[1]), epochs=15)
+        predictions = model.predict(np.asarray(self.test[0]))
+        print(len(predictions))
+        acc = 0
+        for i in range(len(predictions)):
+            #print(predictions[i][0], self.test[1][i])
+            val = predictions[i].astype(np.float)
+            lab = self.test[1][i].astype(np.float)
+            if abs(val - lab) < .1:
+                acc += 1
+        print(acc/len(predictions))
 
+
+
+    def nvidia_model_builder(self):
         model = Sequential()
-        model.add(Convolution2D(3, 5, 5, strides=(2,2), input_shape = (66, 200, 3), activation = 'elu'))
-        model.add(Convolution2D(24, 5, 5, strides=(2,2), input_shape = (31, 98, 24), activation = 'elu'))
-        model.add(Convolution2D(36, 5, 5, strides=(2,2), input_shape = (14, 47, 36), activation = 'elu'))
-        model.add(Convolution2D(48, 3, 3, input_shape = (5, 22, 48), activation = 'elu'))
-        model.add(Convolution2D(64, 3, 3, input_shape = (3, 20, 64), activation = 'elu'))
+        #model.add(Convolution2D(3, (5, 5), strides=(2,2), input_shape=(66, 200, 3), activation='elu'))
+        model.add(Convolution2D(3, (5, 5), strides=(2,2), input_shape=(66, 200, 3), activation='elu'))
+        model.add(Convolution2D(24, (5, 5), strides=(2,2), input_shape=(31, 98, 24), activation='elu'))
+        model.add(Convolution2D(36, (5, 5), strides=(2,2), input_shape=(14, 47, 36), activation='elu'))
+        model.add(Convolution2D(48, (3, 3), input_shape=(5, 22, 48), activation='elu'))
+        model.add(Convolution2D(64, (3, 3), input_shape=(3, 20, 64), activation='elu'))
         model.add(Flatten())
-        model.add(Dense(1164), activation = 'elu')
-        model.add(Dense(100), activation = 'elu')
-        model.add(Dense(50), activation = 'elu')
-        model.add(Dense(10), activation = 'elu')
+        model.add(Dense(1164, activation='elu'))
+        model.add(Dense(100, activation='elu'))
+        model.add(Dense(50, activation='elu'))
+        model.add(Dense(10, activation='elu'))
         model.add(Dense(1))
 
         return model
@@ -120,3 +182,4 @@ if __name__ == "__main__":
     testset = "Drive-1/driving_log.csv"
     dir = "Drive-1"
     model = SD_NN(testset, dir, seed, training_perc)
+    model.train_model()
